@@ -15,15 +15,25 @@ export interface Task {
   logs: string[]
 }
 
+export type NodeStatus = 'online' | 'offline' | 'overloaded'
+
+export interface AnomalyEvent {
+  type: NodeStatus
+  occurredAt: number
+  recoveredAt?: number
+  duration?: number
+}
+
 export interface ClusterNode {
   id: string
   name: string
   type: NodeType
-  status: 'online' | 'offline' | 'overloaded'
+  status: NodeStatus
   cpu: number
   memory: number
   tasks: number
   uptime: number
+  anomalies: AnomalyEvent[]
 }
 
 export interface MetricsSnapshot {

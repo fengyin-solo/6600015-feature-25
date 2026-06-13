@@ -54,6 +54,20 @@ defmodule SchedulerWeb.TaskController do
 
   def nodes(conn, _params) do
     nodes = for i <- 1..5 do
+      anomalies = for _ <- 1..(:rand.uniform(3)) do
+        occurred = System.system_time(:millisecond) - :rand.uniform(86_400_000)
+        recovered = if :rand.uniform() > 0.2 do
+          occurred + :rand.uniform(1_800_000) + 60_000
+        else
+          nil
+        end
+        %{
+          type: Enum.at(["overloaded", "offline"], :rand.uniform(2) - 1),
+          occurred_at: occurred,
+          recovered_at: recovered,
+          duration: if(recovered, do: recovered - occurred, else: nil)
+        }
+      end
       %{
         id: "node-#{i}",
         name: if(i == 1, do: "scheduler-main", else: "worker-#{i - 1}"),
@@ -62,7 +76,8 @@ defmodule SchedulerWeb.TaskController do
         cpu: 20 + :rand.uniform() * 60,
         memory: 30 + :rand.uniform() * 50,
         tasks: :rand.uniform(8),
-        uptime: 3600 + :rand.uniform(86400)
+        uptime: 3600 + :rand.uniform(86400),
+        anomalies: Enum.sort_by(anomalies, & &1.occurred_at, :desc) |> Enum.take(3)
       }
     end
     json(conn, %{nodes: nodes})

@@ -1,7 +1,25 @@
 import { create } from 'zustand'
-import type { Task, ClusterNode, MetricsSnapshot, TaskStatus } from '../types'
+import type { Task, ClusterNode, MetricsSnapshot, TaskStatus, AnomalyEvent, NodeStatus } from '../types'
 
 // Mock data generators
+function mockAnomalies(): AnomalyEvent[] {
+  const count = Math.floor(Math.random() * 3) + 1
+  const types: NodeStatus[] = ['overloaded', 'offline']
+  const events: AnomalyEvent[] = []
+  for (let j = 0; j < count; j++) {
+    const occurredAt = Date.now() - Math.floor(Math.random() * 86400000) - j * 3600000
+    const recovered = Math.random() > 0.2
+    const recoveredAt = recovered ? occurredAt + Math.floor(Math.random() * 1800000) + 60000 : undefined
+    events.push({
+      type: types[Math.floor(Math.random() * types.length)],
+      occurredAt,
+      recoveredAt,
+      duration: recoveredAt ? recoveredAt - occurredAt : undefined,
+    })
+  }
+  return events.sort((a, b) => b.occurredAt - a.occurredAt).slice(0, 3)
+}
+
 function mockNodes(): ClusterNode[] {
   return Array.from({ length: 5 }, (_, i) => ({
     id: `node-${i + 1}`,
@@ -12,6 +30,7 @@ function mockNodes(): ClusterNode[] {
     memory: 30 + Math.random() * 50,
     tasks: Math.floor(Math.random() * 8),
     uptime: 3600 + Math.floor(Math.random() * 86400),
+    anomalies: mockAnomalies(),
   }))
 }
 

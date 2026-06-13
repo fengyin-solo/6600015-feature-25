@@ -2,12 +2,65 @@ import { useState } from 'react'
 import { Layout, Tabs, Statistic, Row, Col, Card, Tag, Button, Input, Table, Drawer, Descriptions, Space, Progress } from 'antd'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { useTaskStore } from '../store/tasks'
-import type { Task, TaskStatus } from '../types'
+import type { Task, TaskStatus, AnomalyEvent } from '../types'
 
 const { Header, Content } = Layout
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
   pending: 'default', running: 'processing', success: 'success', failed: 'error', retry: 'warning'
+}
+
+const ANOMALY_LABEL: Record<string, string> = { overloaded: '过载', offline: '离线' }
+const ANOMALY_COLOR: Record<string, string> = { overloaded: 'orange', offline: 'red' }
+
+function formatDuration(ms: number): string {
+  if (ms < 60000) return `${Math.round(ms / 1000)}秒`
+  if (ms < 3600000) return `${Math.round(ms / 60000)}分钟`
+  return `${(ms / 3600000).toFixed(1)}小时`
+}
+
+function formatTime(ts: number): string {
+  const d = new Date(ts)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function AnomalyRecord({ event }: { event: AnomalyEvent }) {
+  const duration = event.duration ?? (event.recoveredAt ? event.recoveredAt - event.occurredAt : undefined)
+  const isRecovered = !!event.recoveredAt
+  return (
+    <div style={{
+      fontSize: 11,
+      padding: '6px 8px',
+      marginBottom: 4,
+      borderRadius: 4,
+      background: isRecovered ? 'rgba(82, 196, 26, 0.08)' : 'rgba(255, 77, 79, 0.08)',
+      border: `1px solid ${isRecovered ? 'rgba(82, 196, 26, 0.2)' : 'rgba(255, 77, 79, 0.25)'}`
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+        <Tag color={ANOMALY_COLOR[event.type] ?? 'default'} style={{ margin: 0, fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>
+          {ANOMALY_LABEL[event.type] ?? event.type}
+        </Tag>
+        {isRecovered ? (
+          <Tag color="success" style={{ margin: 0, fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>已恢复</Tag>
+        ) : (
+          <Tag color="error" style={{ margin: 0, fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>未恢复</Tag>
+        )}
+      </div>
+      <div style={{ color: '#bbb', lineHeight: 1.6 }}>
+        <div>发生: <span style={{ color: '#ddd' }}>{formatTime(event.occurredAt)}</span></div>
+        {isRecovered && (
+          <>
+            <div>恢复: <span style={{ color: '#52c41a' }}>{formatTime(event.recoveredAt!)}</span></div>
+            <div>持续: <span style={{ color: '#ddd' }}>{formatDuration(duration!)}</span></div>
+          </>
+        )}
+        {!isRecovered && (
+          <div>已持续: <span style={{ color: '#ff4d4f' }}>{formatDuration(Date.now() - event.occurredAt)}</span></div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function Dashboard() {
@@ -109,6 +162,25 @@ export default function Dashboard() {
                     <Progress percent={Math.round(node.memory)} strokeColor={node.memory > 80 ? '#ff4d4f' : '#52c41a'} format={v => `MEM ${v}%`} />
                     <div style={{ marginTop: 8, fontSize: 12, color: '#888' }}>
                       任务数: {node.tasks} | 运行时间: {Math.floor(node.uptime / 3600)}h
+                    </div>
+                    <div style={{ marginTop: 10, borderTop: '1px solid #303030', paddingTop: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: '#bbb', fontWeight: 500 }}>最近异常记录</span>
+                        <span style={{ fontSize: 10, color: node.anomalies.some(a => !a.recoveredAt) ? '#ff4d4f' : '#888' }}>
+                          {node.anomalies.filter(a => !a.recoveredAt).length > 0
+                            ? `${node.anomalies.filter(a => !a.recoveredAt).length} 条未恢复`
+                            : node.anomalies.length > 0 ? `${node.anomalies.length} 条已恢复` : '无异常'}
+                        </span>
+                      </div>
+                      {node.anomalies.length > 0 ? (
+                        node.anomalies.map((evt, idx) => (
+                          <AnomalyRecord key={idx} event={evt} />
+                        ))
+                      ) : (
+                        <div style={{ fontSize: 11, color: '#666', padding: '8px 0', textAlign: 'center' }}>
+                          近 24 小时无异常记录
+                        </div>
+                      )}
                     </div>
                   </Card>
                 </Col>
